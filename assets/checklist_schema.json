@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EEG导入前Checklist",
+  "type": "object",
+  "required": [
+    "output_root",
+    "input_format",
+    "input_files",
+    "expected_sfreq",
+    "file_order_confirmed",
+    "same_animal_continuous_recording",
+    "channels",
+    "bipolar_formulas",
+    "markers"
+  ],
+  "properties": {
+    "output_root": {"type": "string", "minLength": 1},
+    "input_format": {"enum": ["edf", "fif"]},
+    "input_files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "expected_sfreq": {
+      "oneOf": [
+        {"type": "number", "exclusiveMinimum": 0},
+        {"const": "unknown"}
+      ]
+    },
+    "file_order_confirmed": {"const": true},
+    "same_animal_continuous_recording": {"const": true},
+    "channels": {
+      "type": "object",
+      "required": ["eeg", "eeg_ref", "emg", "emg_ref"]
+    },
+    "bipolar_formulas": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "markers": {
+      "type": "array",
+      "minItems": 1
+    }
+  }
+}
