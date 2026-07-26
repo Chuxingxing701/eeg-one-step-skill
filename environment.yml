@@ -1,0 +1,12 @@
+name: mouse-eeg
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.11,<3.14
+  - mne>=1.8
+  - numpy>=2.0
+  - scipy>=1.13
+  - pandas>=2.2
+  - matplotlib>=3.9
+  - pytest>=8
+  - jupyterlab>=4
