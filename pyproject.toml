@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eeg-one-stop-skill"
+version = "0.1.0.dev0"
+description = "Deterministic mouse EEG processing components for a Codex skill"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "mne>=1.8",
+    "numpy>=2.0",
+    "scipy>=1.13",
+    "pandas>=2.2",
+    "matplotlib>=3.9",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["scripts"]
+testpaths = ["tests"]
+addopts = "--strict-markers"
