@@ -86,7 +86,11 @@ def next_versioned_path(
 
     if not content_name.strip():
         raise ValueError("工作内容名称不能为空")
-    normalized_suffix = suffix if suffix.startswith(".") else f".{suffix}"
+    normalized_suffix = (
+        suffix
+        if suffix.startswith((".", "_"))
+        else f".{suffix}"
+    )
     directory = directory.resolve()
     directory.mkdir(parents=True, exist_ok=True)
     timestamp = now.strftime("%Y%m%d-%H%M")
