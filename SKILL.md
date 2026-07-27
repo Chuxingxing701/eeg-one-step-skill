@@ -1,7 +1,6 @@
 ---
 name: eeg-one-stop-skill
 description: Guide and run a reproducible mouse EEG workflow from EDF/FIF import through direct concatenation, user-supplied Markers, bipolar reference, artifact review, line-noise filtering, paper-aligned Bandpower, Hilbert EEG+EMG candidate sleep staging, and evidence-backed chart reporting. Use this skill whenever a user asks to preprocess mouse EEG/EMG, analyze N2O EEG, build Bandpower or time-frequency outputs, review 50/100 Hz interference, or produce Hilbert Wake/NREM/REM candidate results, even when they do not explicitly request a pipeline.
-compatibility: Windows 10/11; user-managed Python 3.11-3.13 environment with MNE, NumPy, SciPy, pandas, matplotlib, and JupyterLab.
 ---
 
 # EEG One-Stop Skill
@@ -123,3 +122,28 @@ The paper source applies to the 3-second Hann-Welch PSD with 50% overlap.
 The paper did not report the notch family, phase, order, width, or a
 0.5-100 Hz bandpass. The zero-phase FIR notch is therefore labeled
 `工程处理` everywhere. No automatic 100 Hz verdict is allowed.
+
+
+## Bandpower Gate
+
+Render every item from `bandpower_step_notices()` before the matching action.
+Each prompt must show the step number, method, purpose, and output.
+
+1. **步骤 1/7：确认Bandpower输入。** 核对滤波冻结版、EEG通道、采样率、
+   Marker、BAD和SHA256，不修改数据。
+2. **步骤 2/7：确认实验阶段区间。** Baseline、Treatment、Recovery等区间
+   必须由用户提供；程序不得推断名称、起止时间或时长。
+3. **步骤 3/7：声明频段与窗参数。** 论文主频段为Delta、Theta、Sigma、
+   Beta、Low Gamma和High Gamma；采用5秒窗、2.5秒步长及
+   2秒Hann-Welch子窗、50%重叠。Alpha仅为附加指标。
+4. **步骤 4/7：逐窗计算Bandpower。** 调用`compute_bandpower()`，输出每窗
+   绝对功率和相对于0.5至100 Hz总功率的相对值。
+5. **步骤 5/7：处理无效窗口。** 任何BAD重叠标为Artifact；跨阶段窗口标为
+   Boundary_Unscored；这些窗口的功率必须写NaN，不得写0或强制分配阶段。
+6. **步骤 6/7：保存Bandpower证据。** 输出逐窗CSV、参数JSON和方法报告，
+   不得覆盖已有版本；主频段与Alpha附加指标保持分离。
+7. **步骤 7/7：进入图表与结论分析。** 使用主频段制作时序、阶段比较和
+   时频图；Alpha单独展示。每张图必须由Codex查看并结合CSV解释。
+
+Bandpower values are independent of candidate sleep-stage labels. Do not use
+unvalidated Hilbert labels to rewrite or discard Bandpower windows.
