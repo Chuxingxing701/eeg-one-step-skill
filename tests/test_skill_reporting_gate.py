@@ -42,4 +42,3 @@ def test_chart_analysis_contract_exists_and_forbids_workflow_labels_in_chart_nam
         "review_status",
     ):
         assert required in text
-
