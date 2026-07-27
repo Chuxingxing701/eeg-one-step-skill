@@ -49,3 +49,44 @@ electrophysiological change, whether its direction is consistent with the
 cited paper, and whether it supports an obvious antidepressant effect. A
 single-animal EEG-only run must label the antidepressant claim as
 `证据不足`.
+
+
+## Artifact Candidate Gate
+
+Run this gate only after the bipolar checkpoint and pre-artifact byte-identical
+copy have been frozen.
+
+1. Generate `artifact_method_explanation()` and show its full text to the user
+   before calling `detect_artifact_candidates()`. The explanation must cover
+   the approved 5-second/MAD/6-threshold method and teach how common artifacts
+   look: high-amplitude transients, movement or cable disturbance, muscle
+   contamination, flatline or dropout, clipping or saturation, and periodic
+   50 Hz or 100 Hz line noise.
+2. State that candidate detection does not delete samples or prove an artifact.
+   Do not proceed until the user confirms they have read the method.
+3. Detect candidates, attach only `CANDIDATE_` annotations, and generate every
+   candidate image plus the CSV/JSON review bundle. Never silently cap or sample
+   the image set.
+4. Use `view_image` on every one of the generated candidate images. Cross-check
+   each image with its CSV/JSON metrics. For every image, record a conclusion
+   (`支持伪迹`, `不支持伪迹`, or `无法判断`), the possible artifact type, the
+   judgment reason, and the exact image evidence. Do not infer the conclusion
+   from the filename or metric alone. Do not label high EMG alone as artifact;
+   it may be genuine wake movement.
+5. Call `write_completed_artifact_reviews()` only after every image has all four
+   review fields. Show the completed report and tell the user how many candidates
+   are supported, unsupported, or unresolved.
+6. Ask one batch question: whether to exclude the Codex-supported candidates.
+   Use `exclude_supported` only after an explicit yes; otherwise use `retain_all`.
+   Candidates marked `无法判断` or `不支持伪迹` must never become `BAD_auto_`.
+7. Freeze the decision output under `数据冻结/05_仅伪迹标注后` without
+   overwriting. Preserve the pre-artifact FIF, candidate images, algorithm
+   reasons, completed per-image review, user decision, Annotations, and SHA256.
+
+The 50 Hz and 100 Hz decision belongs to the later line-noise gate. Do not treat
+a periodic line-noise peak as a segment to delete here.
+
+
+用户可见的伪迹审核说明必须明确包含“常见伪迹”的判断方法，并对每一张图片
+分别给出伪迹类型、判断理由和图像证据。结论不充分时必须标记“无法判断”；
+不得仅凭高EMG把窗口认定为伪迹。50 Hz和100 Hz周期性干扰交由后续工频审核。
