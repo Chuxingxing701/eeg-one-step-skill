@@ -147,3 +147,37 @@ Each prompt must show the step number, method, purpose, and output.
 
 Bandpower values are independent of candidate sleep-stage labels. Do not use
 unvalidated Hilbert labels to rewrite or discard Bandpower windows.
+
+
+## Hilbert Candidate Staging Gate
+
+Render every item from `hilbert_step_notices()` before the matching action.
+Do not run the full target interval until both user confirmations are recorded.
+
+1. **步骤 1/8：确认Hilbert输入。** 核对滤波冻结版、Bandpower、
+   `EEG_bipolar`、`EMG_bipolar`、Marker、BAD和SHA256；二者的窗口和
+   时间轴必须一致。
+2. **步骤 2/8：说明探索性边界。** 先完整展示
+   `hilbert_method_explanation()`。明确40个采样点中值滤波、Hilbert包络
+   不会去除心电、标签不是Ground Truth，并等待用户接受。
+3. **步骤 3/8：运行Smoke Test。** 短窗口必须由用户提供，不得自动选择。
+   调用`write_hilbert_smoke_evidence()`输出EEG、EMG、Hilbert包络和BAD
+   背景图；图名直接写窗口内容，不加exploratory或current phase。
+4. **步骤 4/8：确认Smoke Test。** 让用户查看全部图片；在用户明确确认前，
+   `smoke_test_accepted`保持false，不得调用
+   `run_hilbert_candidate_staging()`运行目标时段。
+5. **步骤 5/8：提取Hilbert特征。** 使用`scipy.signal.hilbert`计算EMG
+   绝对包络并进行40个采样点中值滤波；固定众数加2SD阈值保持关闭。
+6. **步骤 6/8：校准并生成候选。** 只在用户提供的校准区间内排除无效窗后
+   计算Q25/Q50/Q75。EEG Bandpower为主、Hilbert EMG为辅，输出
+   Wake_candidate、NREM_candidate和REM_candidate及规则命中证据。
+7. **步骤 7/8：保留无效与冲突。** BAD必须写Artifact；阶段边界必须写
+   Boundary_Unscored；缺失、冲突或低置信必须写Uncertain，不得虚构概率
+   或强制赋为Wake/NREM/REM。
+8. **步骤 8/8：保存Bout与证据。** 用相邻窗口中心的中点形成非重叠时间箱，
+   只合并同阶段、同标签且时间连续的Bout，不删除短Bout。保存逐窗CSV、
+   Bout CSV、阶段汇总、配置和报告，并生成待人工复核清单。
+
+Treat all candidate durations and phase proportions as experimental engineering
+outputs. Require experienced human review, especially for REM_candidate, before
+using any label in biological interpretation.
