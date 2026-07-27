@@ -181,3 +181,43 @@ Do not run the full target interval until both user confirmations are recorded.
 Treat all candidate durations and phase proportions as experimental engineering
 outputs. Require experienced human review, especially for REM_candidate, before
 using any label in biological interpretation.
+
+
+## Result Reporting Gate
+
+Read `references/chart-analysis-contract.md` in full before this gate. Render
+every item from `reporting_step_notices()` before the matching action so the
+user sees the current step, method, purpose, and output.
+
+1. **步骤 1/6：核对结果输入。** 读取Bandpower逐窗CSV、Hilbert候选逐窗CSV
+   和Hilbert阶段汇总CSV。核对必需字段、有效窗口状态和同源文件路径；缺少字段
+   时停止，不从文件名或图形外观补值。
+2. **步骤 2/6：生成Bandpower图表。** 调用`generate_result_charts()`分别
+   输出论文主频段相对功率时序、Alpha附加指标时序、阶段箱线图和论文主频段
+   相对功率时频图。图名必须直接说明图中内容，严禁加入`exploratory`、
+   `current phase`或其他工作流状态词。Alpha始终与论文主频段分开。
+3. **步骤 3/6：生成Hilbert候选图表。** 输出Hilbert候选分期时间轴和阶段
+   占比。不得把Wake_candidate、NREM_candidate或REM_candidate改称正式
+   睡眠分期；Artifact、Uncertain与Boundary_Unscored必须保留。
+4. **步骤 4/6：逐图分析。** 对清单中的每张真实PNG调用`view_image`逐张
+   查看，并读取`source_data_paths`声明的同源CSV。不得仅凭文件名、自动摘要
+   或预期方向写结论。每张图必须填写图表元素、具体观察、数值证据、图级结论、
+   与N2O的关系、局限和`review_status`。箱线图必须解释：橙色线代表中位数，
+   箱体代表Q1至Q3，须线通常延伸至1.5倍四分位距范围内的最远值，范围外点为
+   离群点；然后结合各阶段中位数、离散程度和重叠程度说明是否存在清晰差异。
+   时频图必须说明横轴、纵轴和颜色，并检查阶段附近是否存在连续频段变化；
+   单个亮点不能单独作为N2O效应证据。
+5. **步骤 5/6：形成三层结论。** 逐图审核全部完成后调用
+   `write_completed_chart_reviews()`。总体结论必须分别回答电生理变化、
+   与论文方向一致性、明显抗抑郁作用，并给出理由。单只动物EEG只能描述个体
+   电生理变化；明显抗抑郁作用必须写`证据不足`，不能用频段变化替代行为学或
+   群体证据。
+6. **步骤 6/6：输出总报告。** 只有所有图表`review_status`均为Completed
+   时才可调用`write_final_result_report()`。结果页必须让图片和对应解释相邻，
+   并汇总Marker、伪迹决定与排除时长、50/100 Hz处理决定、前后PSD证据、
+   软件版本和SHA256。报告结论必须明确写“这是一个实验性结果，需要人工核查”；
+   该警告不得被放入图名而妨碍图片直接使用。
+
+Chart drawing is deterministic, but chart interpretation is not automatic.
+When real output charts do not exist, leave the review pending and do not
+fabricate a biological conclusion from synthetic test data.
