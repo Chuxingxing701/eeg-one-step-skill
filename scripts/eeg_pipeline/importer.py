@@ -42,6 +42,9 @@ class ImportResult:
     destination_sha256: str
     inputs: tuple[InputMetadata, ...]
     source_n_times: tuple[int, ...]
+    selected_channel_names: tuple[str, ...]
+    selected_channel_types: tuple[str, ...]
+    excluded_channel_names: tuple[str, ...]
     n_times: int
     sfreq: float
     duration_seconds: float
@@ -147,6 +150,28 @@ def assert_compatible(
             )
 
 
+def _selected_channel_names(config: RunConfig, source_names: tuple[str, ...]) -> tuple[str, ...]:
+    required = {
+        channel
+        for pair in config.bipolar_pairs
+        for channel in (pair.positive_channel, pair.reference_channel)
+    }
+    return tuple(name for name in source_names if name in required)
+
+
+def _selected_channel_type_map(config: RunConfig) -> dict[str, str]:
+    channel_types: dict[str, str] = {}
+    for pair in config.bipolar_pairs:
+        for channel in (pair.positive_channel, pair.reference_channel):
+            existing = channel_types.get(channel)
+            if existing is not None and existing != pair.channel_type:
+                raise ValueError(
+                    f"同一分析通道被配置为冲突类型：{channel}={existing}/{pair.channel_type}"
+                )
+            channel_types[channel] = pair.channel_type
+    return channel_types
+
+
 def import_and_concatenate(config: RunConfig, destination: Path) -> ImportResult:
     """Save one direct-concatenation FIF without overlap/gap inference."""
 
@@ -154,7 +179,18 @@ def import_and_concatenate(config: RunConfig, destination: Path) -> ImportResult
     if destination.exists():
         raise FileExistsError(destination)
     metadata = inspect_inputs(config)
+    selected_channel_names = _selected_channel_names(config, metadata[0].channel_names)
+    selected_channel_type_map = _selected_channel_type_map(config)
+    selected_channel_types = tuple(
+        selected_channel_type_map[name] for name in selected_channel_names
+    )
+    excluded_channel_names = tuple(
+        name for name in metadata[0].channel_names if name not in selected_channel_names
+    )
     raws = [_read_raw(item.path, preload=False) for item in metadata]
+    for raw in raws:
+        raw.pick(list(selected_channel_names))
+        raw.set_channel_types(selected_channel_type_map, on_unit_change="ignore", verbose="ERROR")
     merged: mne.io.BaseRaw
     try:
         if len(raws) == 1:
@@ -184,12 +220,16 @@ def import_and_concatenate(config: RunConfig, destination: Path) -> ImportResult
         destination_sha256=sha256_file(destination),
         inputs=metadata,
         source_n_times=source_n_times,
+        selected_channel_names=selected_channel_names,
+        selected_channel_types=selected_channel_types,
+        excluded_channel_names=excluded_channel_names,
         n_times=n_times,
         sfreq=sfreq,
         duration_seconds=n_times / sfreq,
         direct_concatenation_assumption=True,
         method_statement=(
             "文件按用户确认顺序直接拼接；未执行重叠/缺口检测；"
+            "只保留双极公式涉及的用户确认分析通道并应用确认的EEG/EMG类型；"
             "未删除、移动或补造任何样本。"
         ),
     )
@@ -226,6 +266,9 @@ def write_import_evidence(
         "destination_sha256": result.destination_sha256,
         "inputs": [_metadata_payload(item) for item in result.inputs],
         "source_n_times": list(result.source_n_times),
+        "selected_channel_names": list(result.selected_channel_names),
+        "selected_channel_types": list(result.selected_channel_types),
+        "excluded_channel_names": list(result.excluded_channel_names),
         "n_times": result.n_times,
         "sfreq": result.sfreq,
         "duration_seconds": result.duration_seconds,
@@ -237,6 +280,9 @@ def write_import_evidence(
         f"- 输入文件数：{len(result.inputs)}\n"
         f"- 输入样本数总和：{sum(result.source_n_times)}\n"
         f"- 输出样本数：{result.n_times}\n"
+        f"- 保留分析通道：{', '.join(result.selected_channel_names)}\n"
+        f"- 分析通道类型：{', '.join(result.selected_channel_types)}\n"
+        f"- 排除非分析通道：{', '.join(result.excluded_channel_names) or '无'}\n"
         f"- 采样率：{result.sfreq} Hz\n"
         f"- 输出时长：{result.duration_seconds} s\n"
         f"- 方法：{result.method_statement}\n"

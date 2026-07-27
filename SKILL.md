@@ -28,6 +28,10 @@ with a guess.
   JupyterLab, Git, or other user-side software.
 - Concatenate files only in the order the user confirms. Do not detect or trim
   overlap/gaps in this version.
+- 原始EDF或FIF不得修改。直接拼接FIF只保留双极公式涉及的用户确认分析通道，
+  通道顺序按源文件头保留并应用用户确认的EEG/EMG类型；未进入双极公式的通道
+  不得静默混入分析文件。拼接报告必须记录保留通道、EEG/EMG类型和排除通道，源文件完整通道清单及SHA256仍保留
+  在输入证据中。
 - Preserve an immutable checkpoint before each destructive-looking decision.
   BAD annotations exclude analysis windows but never delete samples.
 - Pause for user confirmation at Marker, artifact, 100 Hz, and Hilbert gates.
