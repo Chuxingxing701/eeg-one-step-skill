@@ -69,7 +69,9 @@ def test_valid_domain_models_have_no_validation_errors(tmp_path: Path) -> None:
     conclusion = OverallConclusion(
         electrophysiology_change="支持",
         paper_consistency="证据不足",
+        antidepressant_like_trend="证据不足",
         antidepressant_effect="证据不足",
+        trend_rationale="单只合成示例没有完整记录和行为学数据，不能判断趋势。",
         rationale="单只动物EEG只能描述个体内电生理变化。",
     )
 

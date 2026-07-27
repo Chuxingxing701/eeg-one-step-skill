@@ -150,12 +150,14 @@ class ChartAnalysis:
 
 @dataclass(frozen=True)
 class OverallConclusion:
-    """Three scientifically separate verdicts for the final report."""
+    """Separate direction, trend, and efficacy verdicts for the final report."""
 
     electrophysiology_change: Verdict
     paper_consistency: Verdict
     antidepressant_effect: Verdict
     rationale: str
+    antidepressant_like_trend: Verdict = "证据不足"
+    trend_rationale: str = ""
 
     def validate(
         self,
@@ -167,6 +169,7 @@ class OverallConclusion:
         verdicts = (
             cast(str, self.electrophysiology_change),
             cast(str, self.paper_consistency),
+            cast(str, self.antidepressant_like_trend),
             cast(str, self.antidepressant_effect),
         )
         if any(value not in VALID_VERDICTS for value in verdicts):
@@ -179,4 +182,6 @@ class OverallConclusion:
             errors.append("单只动物EEG不能支持明显抗抑郁作用")
         if not self.rationale.strip():
             errors.append("总体结论必须提供理由")
+        if not self.trend_rationale.strip():
+            errors.append("抗抑郁样趋势必须提供单独理由")
         return errors

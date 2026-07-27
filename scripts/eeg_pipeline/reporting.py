@@ -89,7 +89,7 @@ def reporting_step_notices() -> tuple[StepNotice, ...]:
         StepNotice(2, 6, "生成Bandpower图表", "分别输出论文主频段和Alpha附加指标的时序、阶段箱线图及频段时频图。", "把逐窗数值转换为可检查图像。", "Bandpower图表。"),
         StepNotice(3, 6, "生成Hilbert候选图表", "输出候选分期时间轴和阶段占比，不将候选标签改称正式睡眠分期。", "展示候选状态的时间与阶段分布。", "Hilbert候选图表。"),
         StepNotice(4, 6, "逐图分析", "Codex逐张查看真实PNG并与声明的CSV交叉核对。", "为每张图形成可追溯结论。", "完成的逐图审核。"),
-        StepNotice(5, 6, "形成三层结论", "分别判断电生理变化、与论文方向一致性和明显抗抑郁作用。", "避免把EEG变化直接等同于疗效。", "三层总体结论。"),
+        StepNotice(5, 6, "形成四层结论", "分别判断电生理变化、论文一致性、抗抑郁样趋势和明确抗抑郁作用。", "允许描述单只动物趋势，同时避免把趋势等同于疗效。", "四层总体结论。"),
         StepNotice(6, 6, "输出总报告", "仅在全部图表审核完成后生成图文同步HTML结果页。", "交付可直接阅读且可复查的结果。", "最终结果报告。"),
     )
 
@@ -434,6 +434,33 @@ def _relative_image_path(report_path: Path, chart_path: Path) -> str:
     return Path(os.path.relpath(chart_path, report_path.parent)).as_posix()
 
 
+def render_overall_conclusion_html(
+    conclusion: OverallConclusion,
+    *,
+    single_animal: bool,
+    eeg_only: bool,
+) -> str:
+    errors = conclusion.validate(single_animal=single_animal, eeg_only=eeg_only)
+    if errors:
+        raise ValueError("；".join(errors))
+    boundary = (
+        "抗抑郁样趋势只表示单只动物EEG在完整记录的整体观察中，是否呈现与参考研究同向的电生理模式；"
+        "这一判断还需要结合更多动物、重复实验和行为学分析，"
+        "不能等同于已证实的抗抑郁疗效。"
+    )
+    return (
+        "<section><h2>总体结论</h2>"
+        f"<p><strong>电生理变化：</strong>{escape(str(conclusion.electrophysiology_change))}</p>"
+        f"<p><strong>与论文方向一致性：</strong>{escape(str(conclusion.paper_consistency))}</p>"
+        f"<p><strong>抗抑郁样趋势（单只动物EEG）：</strong>{escape(str(conclusion.antidepressant_like_trend))}</p>"
+        f"<p><strong>趋势依据：</strong>{escape(conclusion.trend_rationale)}</p>"
+        f"<p><strong>明显抗抑郁作用：</strong>{escape(str(conclusion.antidepressant_effect))}</p>"
+        f"<p><strong>总体理由：</strong>{escape(conclusion.rationale)}</p>"
+        f"<p><strong>解释边界：</strong>{escape(boundary)}</p>"
+        "</section>"
+    )
+
+
 def write_final_result_report(
     completed_reviews: CompletedChartReviewBundle,
     analyses: tuple[ChartAnalysis, ...],
@@ -451,9 +478,10 @@ def write_final_result_report(
     ):
         raise ValueError("全部图表逐图分析完成前不得生成总报告")
     _validate_analyses(payload, analyses)
-    errors = evidence.validate() + conclusion.validate(single_animal=single_animal, eeg_only=eeg_only)
+    errors = evidence.validate()
     if errors:
         raise ValueError("；".join(errors))
+    conclusion_html = render_overall_conclusion_html(conclusion, single_animal=single_animal, eeg_only=eeg_only)
     report_path = next_versioned_path(directory.resolve(), "脑电处理结果报告", ".html", now)
     analysis_by_path = {str(item.chart_path.resolve()): item for item in analyses}
     sections = []
@@ -491,19 +519,14 @@ p, li {{ line-height: 1.7; }}
 </head>
 <body><main>
 <h1>脑电处理结果报告</h1>
-<p class="warning"><strong>结果边界：</strong>这是一个实验性结果，需要人工核查。Hilbert候选标签不是Ground Truth，单只动物EEG不能单独证明明显抗抑郁作用。</p>
+<p class="warning"><strong>结果边界：</strong>这是一个实验性结果，需要人工核查。Hilbert候选标签不是Ground Truth；单只动物EEG可以描述抗抑郁样趋势，但需要整体观察并结合行为学分析，不能单独证明明确疗效。</p>
 <section><h2>运行证据</h2>
 <p><strong>Marker：</strong>{escape(evidence.marker_summary)}</p>
 <p><strong>伪迹：</strong>{escape(evidence.artifact_summary)}</p>
 <p><strong>工频处理：</strong>{escape(evidence.line_noise_summary)}</p>
 <p><strong>复现信息：</strong>{escape(evidence.reproducibility_summary)}</p></section>
 {''.join(sections)}
-<section><h2>总体结论</h2>
-<p><strong>电生理变化：</strong>{escape(str(conclusion.electrophysiology_change))}</p>
-<p><strong>与论文方向一致性：</strong>{escape(str(conclusion.paper_consistency))}</p>
-<p><strong>明显抗抑郁作用：</strong>{escape(str(conclusion.antidepressant_effect))}</p>
-<p><strong>结论理由：</strong>{escape(conclusion.rationale)}</p>
-</section>
+{conclusion_html}
 </main></body></html>
 """
     write_bytes_exclusive(report_path, html.encode("utf-8"))

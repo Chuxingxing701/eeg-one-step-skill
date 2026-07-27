@@ -45,9 +45,13 @@ not in chart titles.
 
 The overall conclusion must separately answer whether the run shows an
 electrophysiological change, whether its direction is consistent with the
-cited paper, and whether it supports an obvious antidepressant effect. A
-single-animal EEG-only run must label the antidepressant claim as
-`证据不足`.
+cited paper, whether the complete single-animal record presents an
+antidepressant-like electrophysiological trend, and whether it supports an
+obvious antidepressant effect. The trend may be `支持`, `不支持`, or `证据不足`,
+but it must have a separate rationale and state that more animals and
+behavioral analysis are still required. A single-animal EEG-only run cannot
+use that trend to claim confirmed efficacy; the obvious antidepressant-effect
+verdict remains `证据不足`.
 
 
 ## Artifact Candidate Gate
@@ -207,11 +211,13 @@ user sees the current step, method, purpose, and output.
    离群点；然后结合各阶段中位数、离散程度和重叠程度说明是否存在清晰差异。
    时频图必须说明横轴、纵轴和颜色，并检查阶段附近是否存在连续频段变化；
    单个亮点不能单独作为N2O效应证据。
-5. **步骤 5/6：形成三层结论。** 逐图审核全部完成后调用
+5. **步骤 5/6：形成四层结论。** 逐图审核全部完成后调用
    `write_completed_chart_reviews()`。总体结论必须分别回答电生理变化、
-   与论文方向一致性、明显抗抑郁作用，并给出理由。单只动物EEG只能描述个体
-   电生理变化；明显抗抑郁作用必须写`证据不足`，不能用频段变化替代行为学或
-   群体证据。
+   与论文方向一致性、单只动物是否呈现抗抑郁样趋势、是否支持明显抗抑郁作用，
+   并分别给出理由。趋势必须根据完整记录的整体观察判断，可以写`支持`、`不支持`
+   或`证据不足`；同时必须说明还需要更多动物、重复实验和行为学分析，不能等同
+   于已证实疗效。单只动物EEG的明显抗抑郁作用仍必须写`证据不足`，不能用频段
+   变化替代行为学或群体证据。
 6. **步骤 6/6：输出总报告。** 只有所有图表`review_status`均为Completed
    时才可调用`write_final_result_report()`。结果页必须让图片和对应解释相邻，
    并汇总Marker、伪迹决定与排除时长、50/100 Hz处理决定、前后PSD证据、

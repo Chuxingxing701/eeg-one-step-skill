@@ -116,7 +116,9 @@ def _insufficient_conclusion() -> OverallConclusion:
     return OverallConclusion(
         electrophysiology_change="证据不足",
         paper_consistency="证据不足",
+        antidepressant_like_trend="证据不足",
         antidepressant_effect="证据不足",
+        trend_rationale="合成测试数据没有真实完整记录和行为学结果，不能判断趋势。",
         rationale="合成测试数据不能支持真实动物或N2O生物学结论。",
     )
 
