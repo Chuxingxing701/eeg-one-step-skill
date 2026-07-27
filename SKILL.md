@@ -90,3 +90,36 @@ a periodic line-noise peak as a segment to delete here.
 用户可见的伪迹审核说明必须明确包含“常见伪迹”的判断方法，并对每一张图片
 分别给出伪迹类型、判断理由和图像证据。结论不充分时必须标记“无法判断”；
 不得仅凭高EMG把窗口认定为伪迹。50 Hz和100 Hz周期性干扰交由后续工频审核。
+
+
+## Line Noise Gate
+
+Before this gate, show the full output of `line_noise_method_explanation()`.
+For every action, render the matching `StepNotice` first so the user always
+sees the current step number, method, purpose, and expected output.
+
+1. **步骤 1/7：输入结构复核。** 方法：检查样本数、通道、通道类型、采样率
+   和Annotations，不修改信号。输入不通过时立即停止。
+2. **步骤 2/7：计算滤波前PSD。** 方法：调用 `compute_paper_psd()`，采用
+   论文报告的3秒Hann-Welch窗口、50%重叠，并以
+   `reject_by_annotation=True`排除BAD窗口。EEG和EMG必须分别显式选择。
+3. **步骤 3/7：查看滤波前工频图。** 方法：生成完整PSD、45至55 Hz及
+   95至105 Hz三张图；使用`view_image`查看每一张图片，并与PSD和局部峰CSV
+   交叉核对。说明图表含义、窄峰证据及局限。
+4. **步骤 4/7：确认100 Hz处理决定。** 方法：50 Hz按已批准要求滤除；
+   100 Hz必须向用户展示图片和数值证据，并取得用户明确决定。将决定记录为
+   `filter_100=True`或`filter_100=False`；缺少决定时必须停止。
+5. **步骤 5/7：执行工频陷波。** 方法：调用`apply_line_noise_filter()`。
+   这是MNE离线零相位FIR工程处理，不是论文报告的滤波参数。严禁静默增加
+   0.5-100 Hz带通或其他频率。
+6. **步骤 6/7：计算滤波后PSD并对照。** 方法：继续使用相同的论文PSD几何，
+   再生成同样三张图并逐图检查。确认目标窄峰降低，同时检查邻近频率、样本数、
+   通道和Annotations未发生非预期变化。
+7. **步骤 7/7：冻结滤波结果。** 方法：将结果保存到
+   `数据冻结/06_滤波后`，不得覆盖；同时保存Annotations、参数、软件版本、
+   用户100 Hz决定、前后PSD证据和SHA256。
+
+The paper source applies to the 3-second Hann-Welch PSD with 50% overlap.
+The paper did not report the notch family, phase, order, width, or a
+0.5-100 Hz bandpass. The zero-phase FIR notch is therefore labeled
+`工程处理` everywhere. No automatic 100 Hz verdict is allowed.
