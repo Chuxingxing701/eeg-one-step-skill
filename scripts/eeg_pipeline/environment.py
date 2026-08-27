@@ -40,8 +40,12 @@ class EnvironmentReport:
         )
 
     @property
+    def missing_tools(self) -> tuple[str, ...]:
+        return ("git",) if self.git_executable is None else ()
+
+    @property
     def ready(self) -> bool:
-        return not self.missing_packages
+        return not self.missing_packages and not self.missing_tools
 
 
 def _executable_path(command: str) -> Path | None:
@@ -73,7 +77,7 @@ def assert_environment_ready(report: EnvironmentReport) -> None:
 
     if report.ready:
         return
-    missing = ", ".join(report.missing_packages)
+    missing = ", ".join((*report.missing_packages, *report.missing_tools))
     raise EnvironmentNotReadyError(
         f"环境缺少必需包：{missing}。请按手动安装指南处理后再继续。"
     )
@@ -97,7 +101,7 @@ def render_setup_guidance(report: EnvironmentReport) -> str:
 
     guide_path = Path(__file__).parents[2] / "references" / "environment-setup.md"
     guide = guide_path.read_text(encoding="utf-8")
-    missing = "、".join(report.missing_packages)
+    missing = "、".join((*report.missing_packages, *report.missing_tools))
     return (
         f"环境检查未通过，缺少：{missing}。正式流程现在停止。\n\n"
         f"当前Python解释器：{report.python_executable}\n\n"

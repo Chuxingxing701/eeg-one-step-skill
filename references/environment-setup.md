@@ -45,3 +45,12 @@ jupyter lab
 4. JupyterLab 是否能正常新建并运行 Notebook。
 
 这些信息确认前，Skill 不会继续读取 EEG 文件。
+
+## 5. 准备Antila作者源码
+
+由用户手动准备 `https://github.com/tortugar/Lab` 的本地checkout，并切换到：
+
+`bcb8dae1594e64a511545e34f6050e2a417c1f45`
+
+运行前需要提供本地Lab仓库路径。Skill会核对Git commit和
+`PySleep/sleepy.py` SHA256，不会自动clone、下载、安装或替换作者源码。
