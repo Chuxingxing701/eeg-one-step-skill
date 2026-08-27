@@ -37,6 +37,10 @@ with a guess.
 - Pause for user confirmation at Marker, artifact, 100 Hz, and Antila source/calibration gates.
 - Keep `Artifact`, `Uncertain`, and `Boundary_Unscored` labels unchanged.
 - Use only the pinned Antila/PySleep method for sleep staging; do not add alternative staging branches.
+- In user-facing text, call outputs `Antila分期结果`, not candidate staging.
+  Do not name, compare, recommend, or fall back to retired staging methods.
+- Every result handoff must point to the data inventory and journal-redraw guide,
+  even when the current request focuses on only one analysis stage.
 
 ## Reporting Contract
 

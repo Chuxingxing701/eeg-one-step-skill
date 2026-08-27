@@ -39,5 +39,7 @@ def test_skill_contract_is_antila_only_and_has_data_redraw_outputs() -> None:
         "数据获取",
         "期刊重绘",
         "本设计不可计算",
+        "Antila分期结果",
+        "Do not name, compare, recommend, or fall back to retired staging methods",
     ):
         assert required in skill
