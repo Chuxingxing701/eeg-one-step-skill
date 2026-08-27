@@ -4,7 +4,7 @@ from .models import (
     BipolarPair,
     ChartAnalysis,
     MarkerSpec,
-    OverallConclusion,
+    ResearchQuestionConclusions,
     RunConfig,
 )
 
@@ -12,6 +12,6 @@ __all__ = [
     "BipolarPair",
     "ChartAnalysis",
     "MarkerSpec",
-    "OverallConclusion",
+    "ResearchQuestionConclusions",
     "RunConfig",
 ]
