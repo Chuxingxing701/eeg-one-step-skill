@@ -10,7 +10,7 @@ from eeg_pipeline.models import (  # noqa: E402
     BipolarPair,
     ChartAnalysis,
     MarkerSpec,
-    OverallConclusion,
+    ResearchQuestionConclusions,
     RunConfig,
 )
 
@@ -66,18 +66,22 @@ def test_valid_domain_models_have_no_validation_errors(tmp_path: Path) -> None:
         n2o_relevance="支持进一步核查N2O相关变化。",
         limitations="单只动物，不能进行群体推断。",
     )
-    conclusion = OverallConclusion(
-        electrophysiology_change="支持",
-        paper_consistency="证据不足",
-        antidepressant_like_trend="证据不足",
-        antidepressant_effect="证据不足",
-        trend_rationale="单只合成示例没有完整记录和行为学数据，不能判断趋势。",
-        rationale="单只动物EEG只能描述个体内电生理变化。",
+    conclusion = ResearchQuestionConclusions(
+        acute_effect="成立",
+        acute_rationale="急性频段发生变化。",
+        recovery_0_2h_effect="部分成立",
+        recovery_0_2h_rationale="恢复期部分频段变化。",
+        long_term_persistence="不成立",
+        long_term_rationale="长期方向不一致。",
+        sleep_structure_change="成立",
+        sleep_structure_rationale="状态比例发生变化。",
+        paper_parameter_consistency="部分成立",
+        paper_parameter_rationale="部分参数与论文同向。",
     )
 
     assert config.validate() == []
     assert chart.validate() == []
-    assert conclusion.validate(single_animal=True, eeg_only=True) == []
+    assert conclusion.validate() == []
 
 
 def test_run_config_rejects_current_directory_as_output_root(tmp_path: Path) -> None:
@@ -139,32 +143,3 @@ def test_run_config_rejects_empty_marker_name(tmp_path: Path) -> None:
     )
 
     assert "Marker名称不能为空" in invalid.validate()
-
-
-@pytest.mark.parametrize("invalid_verdict", ["maybe", "显著", "yes"])
-def test_overall_conclusion_rejects_unknown_verdict(invalid_verdict: str) -> None:
-    conclusion = OverallConclusion(
-        electrophysiology_change=invalid_verdict,  # type: ignore[arg-type]
-        paper_consistency="证据不足",
-        antidepressant_effect="证据不足",
-        rationale="测试非法结论值。",
-    )
-
-    assert "结论只能使用：支持、不支持、证据不足" in conclusion.validate(
-        single_animal=True,
-        eeg_only=True,
-    )
-
-
-def test_single_animal_eeg_only_cannot_claim_antidepressant_support() -> None:
-    conclusion = OverallConclusion(
-        electrophysiology_change="支持",
-        paper_consistency="支持",
-        antidepressant_effect="支持",
-        rationale="错误地把电生理变化当作抗抑郁证据。",
-    )
-
-    assert "单只动物EEG不能支持明显抗抑郁作用" in conclusion.validate(
-        single_animal=True,
-        eeg_only=True,
-    )

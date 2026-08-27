@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from eeg_pipeline.models import ChartAnalysis, OverallConclusion
+from eeg_pipeline.models import ChartAnalysis, ResearchQuestionConclusions
 from eeg_pipeline.reporting import (
     ReportingInputs,
     RunEvidenceSummary,
@@ -15,6 +15,7 @@ from eeg_pipeline.reporting import (
     reporting_step_notices,
     write_completed_chart_reviews,
     write_final_result_report,
+    _phase_display,
 )
 
 
@@ -47,12 +48,12 @@ def _write_inputs(tmp_path: Path) -> ReportingInputs:
         rows.append(row)
     pd.DataFrame(rows).to_csv(bandpower_path, index=False)
 
-    epoch_path = tmp_path / "hilbert_epochs.csv"
+    epoch_path = tmp_path / "antila_epochs.csv"
     epoch_rows = []
     stages = (
-        "Wake_candidate",
-        "NREM_candidate",
-        "REM_candidate",
+        "Wake",
+        "NREM",
+        "REM",
         "Uncertain",
         "Artifact",
         "Boundary_Unscored",
@@ -64,19 +65,19 @@ def _write_inputs(tmp_path: Path) -> ReportingInputs:
                 "stop_seconds": index * 2.5 + 5.0,
                 "midpoint_seconds": index * 2.5 + 2.5,
                 "phase": phases[index // 6],
-                "candidate_stage": stages[index % len(stages)],
+                "sleep_stage": stages[index % len(stages)],
             }
         )
     pd.DataFrame(epoch_rows).to_csv(epoch_path, index=False)
 
-    summary_path = tmp_path / "hilbert_summary.csv"
+    summary_path = tmp_path / "antila_summary.csv"
     summary_rows = []
     for phase in phases:
         for index, stage in enumerate(stages):
             summary_rows.append(
                 {
                     "phase": phase,
-                    "candidate_stage": stage,
+                    "sleep_stage": stage,
                     "duration_seconds": 10 + index,
                     "percentage_of_phase": 10 + index,
                     "formal_sleep_duration": False,
@@ -112,14 +113,18 @@ def _evidence() -> RunEvidenceSummary:
     )
 
 
-def _insufficient_conclusion() -> OverallConclusion:
-    return OverallConclusion(
-        electrophysiology_change="证据不足",
-        paper_consistency="证据不足",
-        antidepressant_like_trend="证据不足",
-        antidepressant_effect="证据不足",
-        trend_rationale="合成测试数据没有真实完整记录和行为学结果，不能判断趋势。",
-        rationale="合成测试数据不能支持真实动物或N2O生物学结论。",
+def _conclusions() -> ResearchQuestionConclusions:
+    return ResearchQuestionConclusions(
+        acute_effect="本设计不可计算",
+        acute_rationale="合成测试没有匹配Control。",
+        recovery_0_2h_effect="本设计不可计算",
+        recovery_0_2h_rationale="合成测试没有恢复对照。",
+        long_term_persistence="不成立",
+        long_term_rationale="合成测试没有长期持续变化。",
+        sleep_structure_change="部分成立",
+        sleep_structure_rationale="合成状态比例随阶段变化。",
+        paper_parameter_consistency="本设计不可计算",
+        paper_parameter_rationale="合成测试不对应论文实验。",
     )
 
 
@@ -130,6 +135,12 @@ def test_reporting_notices_define_six_numbered_steps() -> None:
     assert all(notice.total_steps == 6 for notice in notices)
     assert "逐图" in notices[3].title
     assert "总报告" in notices[-1].title
+
+
+def test_common_protocol_phase_names_are_displayed_in_chinese() -> None:
+    assert _phase_display("Baseline") == "基线"
+    assert _phase_display("Treatment") == "处理期"
+    assert _phase_display("Recovery") == "恢复期"
 
 
 def test_bandpower_time_series_keeps_invalid_windows_as_nan_gaps() -> None:
@@ -214,25 +225,23 @@ def test_final_report_contains_every_chart_explanation_and_separated_conclusion(
     report_path = write_final_result_report(
         completed,
         analyses,
-        _insufficient_conclusion(),
+        _conclusions(),
         _evidence(),
         tmp_path / "reports",
         now=NOW,
-        single_animal=True,
-        eeg_only=True,
     )
 
     html = report_path.read_text(encoding="utf-8")
     assert html.count("<img ") == len(bundle.chart_paths)
     assert "橙色线" in html
-    assert "电生理变化" in html
-    assert "与论文方向一致性" in html
-    assert "明显抗抑郁作用" in html
-    assert "实验性结果" in html
-    assert "需要人工核查" in html
+    assert "通气期间急性效应" in html
+    assert "停止通气后0–2小时效应" in html
+    assert "睡眠结构变化" in html
+    assert "本设计不可计算" in html
+    assert "需要更多动物" not in html
 
 
-def test_single_animal_eeg_report_rejects_antidepressant_support(tmp_path: Path) -> None:
+def test_final_report_rejects_invalid_research_question_verdict(tmp_path: Path) -> None:
     bundle = generate_result_charts(
         _write_inputs(tmp_path), tmp_path / "charts", tmp_path / "reviews", now=NOW
     )
@@ -243,14 +252,12 @@ def test_single_animal_eeg_report_rejects_antidepressant_support(tmp_path: Path)
         tmp_path / "reviews",
         now=NOW,
     )
-    invalid = OverallConclusion(
-        electrophysiology_change="支持",
-        paper_consistency="支持",
-        antidepressant_effect="支持",
-        rationale="不恰当地把单只动物EEG当作疗效证据。",
+    valid = _conclusions()
+    invalid = ResearchQuestionConclusions(
+        **{**valid.__dict__, "acute_effect": "支持"},  # type: ignore[arg-type]
     )
 
-    with pytest.raises(ValueError, match="单只动物EEG"):
+    with pytest.raises(ValueError, match="成立、部分成立、不成立、本设计不可计算"):
         write_final_result_report(
             completed,
             analyses,
@@ -258,6 +265,4 @@ def test_single_animal_eeg_report_rejects_antidepressant_support(tmp_path: Path)
             _evidence(),
             tmp_path / "reports",
             now=NOW,
-            single_animal=True,
-            eeg_only=True,
         )
