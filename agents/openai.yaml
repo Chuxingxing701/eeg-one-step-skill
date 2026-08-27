@@ -2,7 +2,7 @@ interface:
   display_name: "EEG One-Stop Skill"
   short_description: "Process mouse EDF/FIF EEG with review gates"
   brand_color: "#176B5B"
-  default_prompt: "Use $eeg-one-stop-skill to guide this mouse EEG/EMG analysis from import through Bandpower, Hilbert candidate staging, and an evidence-backed report."
+  default_prompt: "Use $eeg-one-stop-skill to guide this mouse EEG/EMG analysis from import through Bandpower, pinned Antila staging, Chinese charts, data inventory, and direct research-question conclusions."
 
 policy:
   allow_implicit_invocation: true

@@ -1,0 +1,26 @@
+{
+  "skill_name": "eeg-one-stop-skill",
+  "evals": [
+    {
+      "id": 1,
+      "name": "paired-control-n2o",
+      "prompt": "我有同一只小鼠的Control和25%笑气EDF，请说明你会如何完成睡眠分期、Bandpower、中文图表、数据清单，并直接回答急性、恢复0-2小时、长期持续性和睡眠结构问题。",
+      "expected_output": "只使用固定版本Antila；说明来源验证、Valid校准、无效状态、中文图、数据重绘说明和直接研究问题结论。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "single-condition-no-control",
+      "prompt": "这组记录只有25%笑气，没有Control。请说明如何分期和报告通气前、中、后变化，并回答研究问题。",
+      "expected_output": "使用Antila；允许记录内部时间比较；N2O-Control问题写本设计不可计算；不自动追加大样本模板。",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "missing-antila-source",
+      "prompt": "请直接运行睡眠分期，但我没有准备Antila作者源码目录。",
+      "expected_output": "在产生输出前停止，要求用户准备固定commit的本地tortugar/Lab，并核对sleepy.py SHA256；不自动下载或改用其他分期方法。",
+      "files": []
+    }
+  ]
+}

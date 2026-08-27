@@ -1,6 +1,6 @@
 ---
 name: eeg-one-stop-skill
-description: Guide and run a reproducible mouse EEG workflow from EDF/FIF import through direct concatenation, user-supplied Markers, bipolar reference, artifact review, line-noise filtering, paper-aligned Bandpower, Hilbert EEG+EMG candidate sleep staging, and evidence-backed chart reporting. Use this skill whenever a user asks to preprocess mouse EEG/EMG, analyze N2O EEG, build Bandpower or time-frequency outputs, review 50/100 Hz interference, or produce Hilbert Wake/NREM/REM candidate results, even when they do not explicitly request a pipeline.
+description: Guide and run a reproducible mouse EEG/EMG workflow from EDF/FIF import through direct concatenation, user-supplied Markers, bipolar reference, artifact review, line-noise filtering, paper-aligned Bandpower, pinned Antila/PySleep staging, and evidence-backed Chinese reporting. Use this skill whenever a user asks to preprocess mouse EEG/EMG, analyze N2O EEG, compute Bandpower or time-frequency outputs, review 50/100 Hz interference, stage Wake/NREM/REM, or prepare traceable data for journal figures.
 ---
 
 # EEG One-Stop Skill
@@ -34,9 +34,9 @@ with a guess.
   在输入证据中。
 - Preserve an immutable checkpoint before each destructive-looking decision.
   BAD annotations exclude analysis windows but never delete samples.
-- Pause for user confirmation at Marker, artifact, 100 Hz, and Hilbert gates.
+- Pause for user confirmation at Marker, artifact, 100 Hz, and Antila source/calibration gates.
 - Keep `Artifact`, `Uncertain`, and `Boundary_Unscored` labels unchanged.
-- Treat Hilbert sleep states as candidate labels requiring expert validation.
+- Use only the pinned Antila/PySleep method for sleep staging; do not add alternative staging branches.
 
 ## Reporting Contract
 
@@ -47,15 +47,13 @@ Explain every chart beside the image and keep chart names limited to the
 content shown. Put experimental and manual-review warnings in conclusions,
 not in chart titles.
 
-The overall conclusion must separately answer whether the run shows an
-electrophysiological change, whether its direction is consistent with the
-cited paper, whether the complete single-animal record presents an
-antidepressant-like electrophysiological trend, and whether it supports an
-obvious antidepressant effect. The trend may be `支持`, `不支持`, or `证据不足`,
-but it must have a separate rationale and state that more animals and
-behavioral analysis are still required. A single-animal EEG-only run cannot
-use that trend to claim confirmed efficacy; the obvious antidepressant-effect
-verdict remains `证据不足`.
+The overall conclusion must directly answer the current design's research
+questions: acute gas-period effects, recovery 0-2 h effects, longer-term
+persistence, sleep-structure change, and paper-parameter consistency. Each
+answer must be `成立`, `部分成立`, `不成立`, or `本设计不可计算`, with numerical
+evidence. Do not append generic sample-size or future-validation boilerplate.
+When no matched Control exists, mark N2O-Control questions as
+`本设计不可计算` and report only within-record time-related changes.
 
 
 ## Artifact Candidate Gate
@@ -153,42 +151,38 @@ Each prompt must show the step number, method, purpose, and output.
 7. **步骤 7/7：进入图表与结论分析。** 使用主频段制作时序、阶段比较和
    时频图；Alpha单独展示。每张图必须由Codex查看并结合CSV解释。
 
-Bandpower values are independent of candidate sleep-stage labels. Do not use
-unvalidated Hilbert labels to rewrite or discard Bandpower windows.
+Bandpower values are independent of Antila sleep-stage labels. Do not use
+sleep stages to rewrite or discard Bandpower windows.
 
 
-## Hilbert Candidate Staging Gate
+## Antila Staging Gate
 
-Render every item from `hilbert_step_notices()` before the matching action.
-Do not run the full target interval until both user confirmations are recorded.
+Render every item from `antila_step_notices()` before the matching action.
+Do not run staging until source provenance and calibration scope are recorded.
 
-1. **步骤 1/8：确认Hilbert输入。** 核对滤波冻结版、Bandpower、
-   `EEG_bipolar`、`EMG_bipolar`、Marker、BAD和SHA256；二者的窗口和
-   时间轴必须一致。
-2. **步骤 2/8：说明探索性边界。** 先完整展示
-   `hilbert_method_explanation()`。明确40个采样点中值滤波、Hilbert包络
-   不会去除心电、标签不是Ground Truth，并等待用户接受。
-3. **步骤 3/8：运行Smoke Test。** 短窗口必须由用户提供，不得自动选择。
-   调用`write_hilbert_smoke_evidence()`输出EEG、EMG、Hilbert包络和BAD
-   背景图；图名直接写窗口内容，不加exploratory或current phase。
-4. **步骤 4/8：确认Smoke Test。** 让用户查看全部图片；在用户明确确认前，
-   `smoke_test_accepted`保持false，不得调用
-   `run_hilbert_candidate_staging()`运行目标时段。
-5. **步骤 5/8：提取Hilbert特征。** 使用`scipy.signal.hilbert`计算EMG
-   绝对包络并进行40个采样点中值滤波；固定众数加2SD阈值保持关闭。
-6. **步骤 6/8：校准并生成候选。** 只在用户提供的校准区间内排除无效窗后
-   计算Q25/Q50/Q75。EEG Bandpower为主、Hilbert EMG为辅，输出
-   Wake_candidate、NREM_candidate和REM_candidate及规则命中证据。
-7. **步骤 7/8：保留无效与冲突。** BAD必须写Artifact；阶段边界必须写
-   Boundary_Unscored；缺失、冲突或低置信必须写Uncertain，不得虚构概率
-   或强制赋为Wake/NREM/REM。
-8. **步骤 8/8：保存Bout与证据。** 用相邻窗口中心的中点形成非重叠时间箱，
-   只合并同阶段、同标签且时间连续的Bout，不删除短Bout。保存逐窗CSV、
-   Bout CSV、阶段汇总、配置和报告，并生成待人工复核清单。
+1. **步骤 1/8：确认Antila输入。** 核对滤波冻结FIF、Bandpower窗口轴、
+   `EEG_bipolar`、`EMG_bipolar`、Marker、status和SHA256；窗口必须严格同轴。
+2. **步骤 2/8：确认作者源码。** 用户提供本地`tortugar/Lab` checkout。
+   调用`validate_antila_source()`确认commit
+   `bcb8dae1594e64a511545e34f6050e2a417c1f45`和`sleepy.py` SHA256。
+   缺失或不匹配时停止；不得静默clone、下载或替换源码。
+3. **步骤 3/8：确认校准范围。** 默认只用当前记录的Valid窗传给作者
+   `use_idx`。仅当Control/N2O确属确认配对记录且用户批准时，才允许
+   `pooled_valid`校准，并标记为项目扩展。
+4. **步骤 4/8：准备作者输入。** 版本化输出EEG.mat、EMG.mat、info.txt及
+   作者频谱文件；记录每个文件的结构、大小和SHA256，不覆盖已有文件。
+5. **步骤 5/8：运行作者方法。** 调用固定版本`calculate_spectrum()`和
+   未修改的`sleep_state()`；保存完整参数、运行记录和作者detail keys。
+6. **步骤 6/8：对齐项目主轴。** 用`align_antila_states()`把作者输出严格
+   对齐5秒窗/2.5秒步长项目轴。作者额外零填充尾窗单独保存，不强行合并。
+7. **步骤 7/8：恢复保护状态。** Valid窗可写Wake、NREM、REM或Uncertain；
+   Artifact和Boundary_Unscored覆盖作者标签；不得改写Bandpower值。
+8. **步骤 8/8：保存睡眠结构证据。** 输出逐窗分期、阶段时长、睡眠片段、
+   状态转换、校准配置、源码清单、方法报告、开发日志和SHA256。
 
-Treat all candidate durations and phase proportions as experimental engineering
-outputs. Require experienced human review, especially for REM_candidate, before
-using any label in biological interpretation.
+The staging output is the pinned Antila result for this pipeline. Preserve
+method provenance and invalid states so later figures can be regenerated from
+the CSV rather than inferred from report images.
 
 
 ## Result Reporting Gate
@@ -197,16 +191,16 @@ Read `references/chart-analysis-contract.md` in full before this gate. Render
 every item from `reporting_step_notices()` before the matching action so the
 user sees the current step, method, purpose, and output.
 
-1. **步骤 1/6：核对结果输入。** 读取Bandpower逐窗CSV、Hilbert候选逐窗CSV
-   和Hilbert阶段汇总CSV。核对必需字段、有效窗口状态和同源文件路径；缺少字段
+1. **步骤 1/6：核对结果输入。** 读取Bandpower逐窗CSV、Antila逐窗CSV
+   和Antila阶段汇总CSV。核对必需字段、有效窗口状态和同源文件路径；缺少字段
    时停止，不从文件名或图形外观补值。
 2. **步骤 2/6：生成Bandpower图表。** 调用`generate_result_charts()`分别
    输出论文主频段相对功率时序、Alpha附加指标时序、阶段箱线图和论文主频段
    相对功率时频图。图名必须直接说明图中内容，严禁加入`exploratory`、
    `current phase`或其他工作流状态词。Alpha始终与论文主频段分开。
-3. **步骤 3/6：生成Hilbert候选图表。** 输出Hilbert候选分期时间轴和阶段
-   占比。不得把Wake_candidate、NREM_candidate或REM_candidate改称正式
-   睡眠分期；Artifact、Uncertain与Boundary_Unscored必须保留。
+3. **步骤 3/6：生成Antila分期图表。** 输出Antila睡眠分期时间轴和阶段
+   占比；图内使用中文状态名称，CSV保留Wake、NREM、REM枚举；Artifact、
+   Uncertain与Boundary_Unscored必须保留。
 4. **步骤 4/6：逐图分析。** 对清单中的每张真实PNG调用`view_image`逐张
    查看，并读取`source_data_paths`声明的同源CSV。不得仅凭文件名、自动摘要
    或预期方向写结论。每张图必须填写图表元素、具体观察、数值证据、图级结论、
@@ -215,18 +209,17 @@ user sees the current step, method, purpose, and output.
    离群点；然后结合各阶段中位数、离散程度和重叠程度说明是否存在清晰差异。
    时频图必须说明横轴、纵轴和颜色，并检查阶段附近是否存在连续频段变化；
    单个亮点不能单独作为N2O效应证据。
-5. **步骤 5/6：形成四层结论。** 逐图审核全部完成后调用
-   `write_completed_chart_reviews()`。总体结论必须分别回答电生理变化、
-   与论文方向一致性、单只动物是否呈现抗抑郁样趋势、是否支持明显抗抑郁作用，
-   并分别给出理由。趋势必须根据完整记录的整体观察判断，可以写`支持`、`不支持`
-   或`证据不足`；同时必须说明还需要更多动物、重复实验和行为学分析，不能等同
-   于已证实疗效。单只动物EEG的明显抗抑郁作用仍必须写`证据不足`，不能用频段
-   变化替代行为学或群体证据。
+5. **步骤 5/6：回答研究问题。** 逐图审核全部完成后调用
+   `write_completed_chart_reviews()`。用`ResearchQuestionConclusions`分别回答
+   通气期急性效应、恢复0–2小时、长期持续性、睡眠结构变化和论文参数方向。
+   结论只能写`成立`、`部分成立`、`不成立`或`本设计不可计算`，每项附数值依据。
 6. **步骤 6/6：输出总报告。** 只有所有图表`review_status`均为Completed
    时才可调用`write_final_result_report()`。结果页必须让图片和对应解释相邻，
    并汇总Marker、伪迹决定与排除时长、50/100 Hz处理决定、前后PSD证据、
-   软件版本和SHA256。报告结论必须明确写“这是一个实验性结果，需要人工核查”；
-   该警告不得被放入图名而妨碍图片直接使用。
+   软件版本和SHA256。调用`write_data_inventory()`输出数据获取清单，并调用
+   `write_journal_redraw_guide()`输出期刊重绘说明，覆盖EDF/FIF、Antila、
+   Bandpower、图表源CSV、字段、单位与筛选方法；报告PNG只用于汇报，
+   期刊图从CSV重绘。
 
 Chart drawing is deterministic, but chart interpretation is not automatic.
 When real output charts do not exist, leave the review pending and do not
