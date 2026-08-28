@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 
 from .line_noise import StepNotice, _chinese_font
-from .models import ChartAnalysis, OverallConclusion
+from .models import ChartAnalysis, ResearchQuestionConclusions
 from .workspace import next_versioned_path, write_bytes_exclusive
 
 
@@ -27,22 +27,74 @@ PRIMARY_BANDS = (
     "High_Gamma",
 )
 ADDITIONAL_BAND = "Alpha_additional"
-CANDIDATE_STAGES = (
-    "Wake_candidate",
-    "NREM_candidate",
-    "REM_candidate",
+BAND_DISPLAY_LABELS = {
+    "Delta": "δ波",
+    "Theta": "θ波",
+    "Sigma": "σ波",
+    "Beta": "β波",
+    "Low_Gamma": "低γ波",
+    "High_Gamma": "高γ波",
+    "Alpha_additional": "α附加指标",
+}
+SLEEP_STAGES = (
+    "Wake",
+    "NREM",
+    "REM",
     "Uncertain",
     "Artifact",
     "Boundary_Unscored",
 )
+SLEEP_STAGE_LABELS = {
+    "Wake": "清醒",
+    "NREM": "非快速眼动睡眠",
+    "REM": "快速眼动睡眠",
+    "Uncertain": "不确定",
+    "Artifact": "伪迹",
+    "Boundary_Unscored": "边界未评分",
+}
+PHASE_DISPLAY_LABELS = {
+    "Baseline": "基线",
+    "Treatment": "处理期",
+    "Recovery": "恢复期",
+    "Pre_box": "放入箱前",
+    "Adaptation": "适应期",
+    "Gas": "通气期",
+    "Gas_first_60min": "通气首60分钟",
+    "Recovery_0_2h": "停止通气后0–2小时",
+    "Long_Recovery": "长时恢复",
+}
 FORBIDDEN_CHART_LABELS = ("exploratory", "current phase")
+
+
+def render_research_question_conclusions_html(
+    conclusions: ResearchQuestionConclusions,
+) -> str:
+    errors = conclusions.validate()
+    if errors:
+        raise ValueError("；".join(errors))
+    rows = (
+        ("通气期间急性效应", conclusions.acute_effect, conclusions.acute_rationale),
+        ("停止通气后0–2小时效应", conclusions.recovery_0_2h_effect, conclusions.recovery_0_2h_rationale),
+        ("停止通气后长期持续性", conclusions.long_term_persistence, conclusions.long_term_rationale),
+        ("睡眠结构变化", conclusions.sleep_structure_change, conclusions.sleep_structure_rationale),
+        ("论文参数方向一致性", conclusions.paper_parameter_consistency, conclusions.paper_parameter_rationale),
+    )
+    body = "".join(
+        f"<tr><th>{escape(title)}</th><td>{escape(verdict)}</td><td>{escape(rationale)}</td></tr>"
+        for title, verdict, rationale in rows
+    )
+    return (
+        "<section><h2>研究问题结论</h2>"
+        "<table><thead><tr><th>研究问题</th><th>判断</th><th>依据</th></tr></thead>"
+        f"<tbody>{body}</tbody></table></section>"
+    )
 
 
 @dataclass(frozen=True)
 class ReportingInputs:
     bandpower_csv_path: Path
-    hilbert_epoch_csv_path: Path
-    hilbert_phase_summary_csv_path: Path
+    antila_epoch_csv_path: Path
+    antila_phase_summary_csv_path: Path
 
 
 @dataclass(frozen=True)
@@ -85,11 +137,11 @@ class _ChartSpec:
 
 def reporting_step_notices() -> tuple[StepNotice, ...]:
     return (
-        StepNotice(1, 6, "核对结果输入", "读取Bandpower和Hilbert CSV并核对字段，不推断缺失数据。", "保证每张图有明确同源数据。", "结果输入QC。"),
+        StepNotice(1, 6, "核对结果输入", "读取频段功率和Antila CSV并核对字段，不推断缺失数据。", "保证每张图有明确同源数据。", "结果输入QC。"),
         StepNotice(2, 6, "生成Bandpower图表", "分别输出论文主频段和Alpha附加指标的时序、阶段箱线图及频段时频图。", "把逐窗数值转换为可检查图像。", "Bandpower图表。"),
-        StepNotice(3, 6, "生成Hilbert候选图表", "输出候选分期时间轴和阶段占比，不将候选标签改称正式睡眠分期。", "展示候选状态的时间与阶段分布。", "Hilbert候选图表。"),
+        StepNotice(3, 6, "生成Antila分期图表", "输出Antila分期时间轴和阶段占比，并保留不确定、伪迹与边界状态。", "展示睡眠状态的时间与阶段分布。", "Antila分期图表。"),
         StepNotice(4, 6, "逐图分析", "Codex逐张查看真实PNG并与声明的CSV交叉核对。", "为每张图形成可追溯结论。", "完成的逐图审核。"),
-        StepNotice(5, 6, "形成四层结论", "分别判断电生理变化、论文一致性、抗抑郁样趋势和明确抗抑郁作用。", "允许描述单只动物趋势，同时避免把趋势等同于疗效。", "四层总体结论。"),
+        StepNotice(5, 6, "回答研究问题", "分别判断急性效应、恢复0–2小时、长期持续性和睡眠结构变化。", "直接回答当前设计可以计算的问题。", "研究问题结论。"),
         StepNotice(6, 6, "输出总报告", "仅在全部图表审核完成后生成图文同步HTML结果页。", "交付可直接阅读且可复查的结果。", "最终结果报告。"),
     )
 
@@ -109,8 +161,8 @@ def _require_columns(frame: pd.DataFrame, columns: tuple[str, ...], label: str) 
 
 def _load_reporting_data(inputs: ReportingInputs) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     bandpower = _read_csv(inputs.bandpower_csv_path, "Bandpower逐窗CSV")
-    epochs = _read_csv(inputs.hilbert_epoch_csv_path, "Hilbert逐窗CSV")
-    summary = _read_csv(inputs.hilbert_phase_summary_csv_path, "Hilbert阶段汇总CSV")
+    epochs = _read_csv(inputs.antila_epoch_csv_path, "Antila逐窗CSV")
+    summary = _read_csv(inputs.antila_phase_summary_csv_path, "Antila阶段汇总CSV")
     band_columns = (
         "midpoint_seconds",
         "phase",
@@ -121,13 +173,13 @@ def _load_reporting_data(inputs: ReportingInputs) -> tuple[pd.DataFrame, pd.Data
     _require_columns(bandpower, band_columns, "Bandpower逐窗CSV")
     _require_columns(
         epochs,
-        ("start_seconds", "stop_seconds", "midpoint_seconds", "phase", "candidate_stage"),
-        "Hilbert逐窗CSV",
+        ("start_seconds", "stop_seconds", "midpoint_seconds", "phase", "sleep_stage"),
+        "Antila逐窗CSV",
     )
     _require_columns(
         summary,
-        ("phase", "candidate_stage", "duration_seconds", "percentage_of_phase"),
-        "Hilbert阶段汇总CSV",
+        ("phase", "sleep_stage", "duration_seconds", "percentage_of_phase"),
+        "Antila阶段汇总CSV",
     )
     if bandpower.empty or epochs.empty or summary.empty:
         raise ValueError("报告输入CSV不能为空")
@@ -145,6 +197,10 @@ def _save_figure(figure: plt.Figure, destination: Path) -> Path:
 
 def _phase_order(frame: pd.DataFrame) -> list[str]:
     return list(dict.fromkeys(str(value) for value in frame["phase"] if pd.notna(value)))
+
+
+def _phase_display(value: str) -> str:
+    return PHASE_DISPLAY_LABELS.get(value, value)
 
 
 def masked_relative_values(frame: pd.DataFrame, column: str) -> np.ndarray:
@@ -174,7 +230,7 @@ def _plot_band_timeseries(frame: pd.DataFrame, bands: tuple[str, ...], title: st
     for index, band in enumerate(bands):
         axis = axes.flat[index]
         axis.plot(x_hours, masked_relative_values(frame, f"{band}_relative"), color="#1F4E79", linewidth=1.0)
-        axis.set_title(band.replace("_additional", "（附加指标）"), fontproperties=font)
+        axis.set_title(BAND_DISPLAY_LABELS[band], fontproperties=font)
         axis.set_xlabel("记录时间（小时）", fontproperties=font)
         axis.set_ylabel("相对功率", fontproperties=font)
         _style_axis(axis, font)
@@ -201,7 +257,7 @@ def _plot_band_boxplots(frame: pd.DataFrame, bands: tuple[str, ...], title: str,
         ]
         axis.boxplot(
             values,
-            tick_labels=phases,
+            tick_labels=[_phase_display(phase) for phase in phases],
             patch_artist=True,
             medianprops={"color": "#E67E22", "linewidth": 1.8},
             boxprops={"facecolor": "#DCE6F1", "edgecolor": "#1F4E79"},
@@ -209,7 +265,7 @@ def _plot_band_boxplots(frame: pd.DataFrame, bands: tuple[str, ...], title: str,
             capprops={"color": "#1F4E79"},
             flierprops={"marker": "o", "markersize": 3, "markerfacecolor": "none", "markeredgecolor": "#B33A3A"},
         )
-        axis.set_title(band.replace("_additional", "（附加指标）"), fontproperties=font)
+        axis.set_title(BAND_DISPLAY_LABELS[band], fontproperties=font)
         axis.set_ylabel("相对功率", fontproperties=font)
         _style_axis(axis, font)
     for axis in axes.flat[len(bands):]:
@@ -224,7 +280,11 @@ def _plot_band_heatmap(frame: pd.DataFrame, destination: Path) -> None:
     font = _chinese_font()
     figure, axis = plt.subplots(figsize=(13, 5.5), constrained_layout=True)
     image = axis.imshow(matrix, aspect="auto", interpolation="nearest", cmap="viridis")
-    axis.set_yticks(np.arange(len(PRIMARY_BANDS)), labels=PRIMARY_BANDS, fontproperties=font)
+    axis.set_yticks(
+        np.arange(len(PRIMARY_BANDS)),
+        labels=[BAND_DISPLAY_LABELS[band] for band in PRIMARY_BANDS],
+        fontproperties=font,
+    )
     tick_indices = np.linspace(0, len(frame) - 1, min(7, len(frame)), dtype=int)
     tick_hours = frame.iloc[tick_indices]["midpoint_seconds"].to_numpy(dtype=float) / 3600.0
     axis.set_xticks(tick_indices, labels=[f"{value:.2f}" for value in tick_hours])
@@ -237,46 +297,47 @@ def _plot_band_heatmap(frame: pd.DataFrame, destination: Path) -> None:
     _save_figure(figure, destination)
 
 
-def _plot_hilbert_timeline(frame: pd.DataFrame, destination: Path) -> None:
+def _plot_antila_timeline(frame: pd.DataFrame, destination: Path) -> None:
     font = _chinese_font()
-    stage_index = {stage: index for index, stage in enumerate(CANDIDATE_STAGES)}
-    unknown = sorted(set(frame["candidate_stage"].astype(str)) - set(stage_index))
+    stage_index = {stage: index for index, stage in enumerate(SLEEP_STAGES)}
+    unknown = sorted(set(frame["sleep_stage"].astype(str)) - set(stage_index))
     if unknown:
-        raise ValueError(f"Hilbert逐窗CSV包含未知候选标签：{', '.join(unknown)}")
+        raise ValueError(f"Antila逐窗CSV包含未知睡眠标签：{', '.join(unknown)}")
     colors = ("#1F4E79", "#2A7F62", "#8E6C8A", "#7F7F7F", "#B33A3A", "#C58B2A")
     figure, axis = plt.subplots(figsize=(13, 5.5), constrained_layout=True)
     x = frame["midpoint_seconds"].to_numpy(dtype=float) / 3600.0
-    for stage, color in zip(CANDIDATE_STAGES, colors):
-        mask = frame["candidate_stage"].astype(str) == stage
-        axis.scatter(x[mask], np.full(int(mask.sum()), stage_index[stage]), s=8, color=color, label=stage)
-    axis.set_yticks(range(len(CANDIDATE_STAGES)), labels=CANDIDATE_STAGES)
+    for stage, color in zip(SLEEP_STAGES, colors):
+        mask = frame["sleep_stage"].astype(str) == stage
+        axis.scatter(x[mask], np.full(int(mask.sum()), stage_index[stage]), s=8, color=color, label=SLEEP_STAGE_LABELS[stage])
+    axis.set_yticks(range(len(SLEEP_STAGES)), labels=[SLEEP_STAGE_LABELS[stage] for stage in SLEEP_STAGES], fontproperties=font)
     axis.set_xlabel("记录时间（小时）", fontproperties=font)
-    axis.set_ylabel("Hilbert候选状态", fontproperties=font)
-    axis.set_title("Hilbert候选分期时间轴", fontproperties=font)
-    axis.legend(ncol=3, loc="upper center", bbox_to_anchor=(0.5, -0.16))
+    axis.set_ylabel("Antila睡眠状态", fontproperties=font)
+    axis.set_title("Antila睡眠分期时间轴", fontproperties=font)
+    axis.legend(ncol=3, loc="upper center", bbox_to_anchor=(0.5, -0.16), prop=font)
     _style_axis(axis, font)
     _save_figure(figure, destination)
 
 
-def _plot_hilbert_phase_proportions(frame: pd.DataFrame, destination: Path) -> None:
+def _plot_antila_phase_proportions(frame: pd.DataFrame, destination: Path) -> None:
     phases = _phase_order(frame)
     font = _chinese_font()
     colors = ("#1F4E79", "#2A7F62", "#8E6C8A", "#7F7F7F", "#B33A3A", "#C58B2A")
     figure, axis = plt.subplots(figsize=(11.5, 6), constrained_layout=True)
     bottom = np.zeros(len(phases), dtype=float)
-    for stage, color in zip(CANDIDATE_STAGES, colors):
+    for stage, color in zip(SLEEP_STAGES, colors):
         values = np.array(
             [
-                frame.loc[(frame["phase"] == phase) & (frame["candidate_stage"] == stage), "percentage_of_phase"].sum()
+                frame.loc[(frame["phase"] == phase) & (frame["sleep_stage"] == stage), "percentage_of_phase"].sum()
                 for phase in phases
             ],
             dtype=float,
         )
-        axis.bar(phases, values, bottom=bottom, label=stage, color=color)
+        axis.bar(np.arange(len(phases)), values, bottom=bottom, label=SLEEP_STAGE_LABELS[stage], color=color)
         bottom += values
+    axis.set_xticks(np.arange(len(phases)), labels=[_phase_display(phase) for phase in phases], fontproperties=font)
     axis.set_ylabel("阶段占比（%）", fontproperties=font)
-    axis.set_title("Hilbert候选分期阶段占比", fontproperties=font)
-    axis.legend(ncol=3, loc="upper center", bbox_to_anchor=(0.5, -0.14))
+    axis.set_title("Antila睡眠分期阶段占比", fontproperties=font)
+    axis.legend(ncol=3, loc="upper center", bbox_to_anchor=(0.5, -0.14), prop=font)
     _style_axis(axis, font)
     _save_figure(figure, destination)
 
@@ -316,18 +377,18 @@ def generate_result_charts(
     bandpower, epochs, summary = _load_reporting_data(inputs)
     inputs = ReportingInputs(
         inputs.bandpower_csv_path.resolve(),
-        inputs.hilbert_epoch_csv_path.resolve(),
-        inputs.hilbert_phase_summary_csv_path.resolve(),
+        inputs.antila_epoch_csv_path.resolve(),
+        inputs.antila_phase_summary_csv_path.resolve(),
     )
     box_elements = "橙色线代表中位数；箱体表示Q1至Q3（中间50%数据）；须结合图中须线所示1.5倍四分位距范围和离群点判断分布。"
     specs = [
         _ChartSpec("论文主频段相对功率时序", "论文主频段相对功率时序", "time_series", (inputs.bandpower_csv_path,), "横轴为记录时间，纵轴为相对功率；六个小图分别对应论文主频段。"),
-        _ChartSpec("Alpha附加指标相对功率时序", "Alpha附加指标相对功率时序", "time_series", (inputs.bandpower_csv_path,), "横轴为记录时间，纵轴为Alpha附加指标相对功率；该指标不并入论文主频段结论。"),
+        _ChartSpec("α附加指标相对功率时序", "α附加指标相对功率时序", "time_series", (inputs.bandpower_csv_path,), "横轴为记录时间，纵轴为α附加指标相对功率；该指标不并入论文主频段结论。"),
         _ChartSpec("论文主频段阶段箱线图", "论文主频段阶段箱线图", "boxplot", (inputs.bandpower_csv_path,), box_elements),
-        _ChartSpec("Alpha附加指标阶段箱线图", "Alpha附加指标阶段箱线图", "boxplot", (inputs.bandpower_csv_path,), box_elements + " Alpha仅作附加观察。"),
+        _ChartSpec("α附加指标阶段箱线图", "α附加指标阶段箱线图", "boxplot", (inputs.bandpower_csv_path,), box_elements + " α仅作附加观察。"),
         _ChartSpec("EEG论文主频段相对功率时频图", "EEG论文主频段相对功率时频图", "band_time_heatmap", (inputs.bandpower_csv_path,), "横轴为记录时间，纵轴为论文主频段，颜色表示逐窗相对功率；应查看阶段附近是否出现连续频段增强或减弱，而不是把单个亮点当作效应。"),
-        _ChartSpec("Hilbert候选分期时间轴", "Hilbert候选分期时间轴", "candidate_timeline", (inputs.hilbert_epoch_csv_path,), "横轴为记录时间，纵轴为候选状态；每个点来自一个逐窗候选标签，Artifact、Uncertain和Boundary_Unscored保持独立。"),
-        _ChartSpec("Hilbert候选分期阶段占比", "Hilbert候选分期阶段占比", "candidate_proportion", (inputs.hilbert_phase_summary_csv_path,), "每根柱表示一个实验阶段，堆叠区段表示各候选状态占该阶段的比例；候选比例不是正式睡眠时长。"),
+        _ChartSpec("Antila睡眠分期时间轴", "Antila睡眠分期时间轴", "sleep_timeline", (inputs.antila_epoch_csv_path,), "横轴为记录时间，纵轴为Antila睡眠状态；不确定、伪迹和边界未评分保持独立。"),
+        _ChartSpec("Antila睡眠分期阶段占比", "Antila睡眠分期阶段占比", "sleep_proportion", (inputs.antila_phase_summary_csv_path,), "每根柱表示一个实验阶段，堆叠区段表示各Antila状态占该阶段的比例。"),
     ]
     for spec in specs:
         lowered = f"{spec.title} {spec.content_name}".lower()
@@ -340,8 +401,8 @@ def generate_result_charts(
     _plot_band_boxplots(bandpower, PRIMARY_BANDS, specs[2].title, paths[2])
     _plot_band_boxplots(bandpower, (ADDITIONAL_BAND,), specs[3].title, paths[3])
     _plot_band_heatmap(bandpower, paths[4])
-    _plot_hilbert_timeline(epochs, paths[5])
-    _plot_hilbert_phase_proportions(summary, paths[6])
+    _plot_antila_timeline(epochs, paths[5])
+    _plot_antila_phase_proportions(summary, paths[6])
     manifest_path = next_versioned_path(review_directory.resolve(), "逐图分析待审核清单", ".json", now)
     _write_pending_manifest(specs, paths, manifest_path)
     return ResultChartBundle(tuple(paths), manifest_path)
@@ -434,43 +495,14 @@ def _relative_image_path(report_path: Path, chart_path: Path) -> str:
     return Path(os.path.relpath(chart_path, report_path.parent)).as_posix()
 
 
-def render_overall_conclusion_html(
-    conclusion: OverallConclusion,
-    *,
-    single_animal: bool,
-    eeg_only: bool,
-) -> str:
-    errors = conclusion.validate(single_animal=single_animal, eeg_only=eeg_only)
-    if errors:
-        raise ValueError("；".join(errors))
-    boundary = (
-        "抗抑郁样趋势只表示单只动物EEG在完整记录的整体观察中，是否呈现与参考研究同向的电生理模式；"
-        "这一判断还需要结合更多动物、重复实验和行为学分析，"
-        "不能等同于已证实的抗抑郁疗效。"
-    )
-    return (
-        "<section><h2>总体结论</h2>"
-        f"<p><strong>电生理变化：</strong>{escape(str(conclusion.electrophysiology_change))}</p>"
-        f"<p><strong>与论文方向一致性：</strong>{escape(str(conclusion.paper_consistency))}</p>"
-        f"<p><strong>抗抑郁样趋势（单只动物EEG）：</strong>{escape(str(conclusion.antidepressant_like_trend))}</p>"
-        f"<p><strong>趋势依据：</strong>{escape(conclusion.trend_rationale)}</p>"
-        f"<p><strong>明显抗抑郁作用：</strong>{escape(str(conclusion.antidepressant_effect))}</p>"
-        f"<p><strong>总体理由：</strong>{escape(conclusion.rationale)}</p>"
-        f"<p><strong>解释边界：</strong>{escape(boundary)}</p>"
-        "</section>"
-    )
-
-
 def write_final_result_report(
     completed_reviews: CompletedChartReviewBundle,
     analyses: tuple[ChartAnalysis, ...],
-    conclusion: OverallConclusion,
+    conclusion: ResearchQuestionConclusions,
     evidence: RunEvidenceSummary,
     directory: Path,
     *,
     now: datetime,
-    single_animal: bool,
-    eeg_only: bool,
 ) -> Path:
     payload = _manifest(completed_reviews.json_path.resolve())
     if payload.get("review_status") != "Completed" or any(
@@ -481,7 +513,7 @@ def write_final_result_report(
     errors = evidence.validate()
     if errors:
         raise ValueError("；".join(errors))
-    conclusion_html = render_overall_conclusion_html(conclusion, single_animal=single_animal, eeg_only=eeg_only)
+    conclusion_html = render_research_question_conclusions_html(conclusion)
     report_path = next_versioned_path(directory.resolve(), "脑电处理结果报告", ".html", now)
     analysis_by_path = {str(item.chart_path.resolve()): item for item in analyses}
     sections = []
@@ -519,7 +551,7 @@ p, li {{ line-height: 1.7; }}
 </head>
 <body><main>
 <h1>脑电处理结果报告</h1>
-<p class="warning"><strong>结果边界：</strong>这是一个实验性结果，需要人工核查。Hilbert候选标签不是Ground Truth；单只动物EEG可以描述抗抑郁样趋势，但需要整体观察并结合行为学分析，不能单独证明明确疗效。</p>
+<p><strong>分期方法：</strong>睡眠状态来自固定版本Antila/PySleep；没有匹配对照的设计不会计算N2O-Control效应。</p>
 <section><h2>运行证据</h2>
 <p><strong>Marker：</strong>{escape(evidence.marker_summary)}</p>
 <p><strong>伪迹：</strong>{escape(evidence.artifact_summary)}</p>

@@ -94,3 +94,22 @@ def test_ready_environment_guidance_reports_current_interpreter() -> None:
 
     assert str(Path(sys.executable)) in guidance
     assert "环境检查通过" in guidance
+
+
+def test_missing_git_blocks_antila_workflow(monkeypatch: pytest.MonkeyPatch) -> None:
+    from eeg_pipeline import environment
+
+    real_executable_path = environment._executable_path
+
+    def fake_executable_path(command: str):
+        if command == "git":
+            return None
+        return real_executable_path(command)
+
+    monkeypatch.setattr(environment, "_executable_path", fake_executable_path)
+    report = probe_environment()
+
+    assert report.missing_tools == ("git",)
+    assert report.ready is False
+    with pytest.raises(EnvironmentNotReadyError, match="git"):
+        assert_environment_ready(report)

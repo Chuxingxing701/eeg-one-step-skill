@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal
 
 
 MarkerBasis = Literal[
@@ -14,14 +14,14 @@ MarkerBasis = Literal[
 ]
 GateStatus = Literal["pending", "waiting_user", "complete", "failed"]
 Decision = Literal["mark_all_bad", "retain_all"]
-Verdict = Literal["支持", "不支持", "证据不足"]
+ResearchVerdict = Literal["成立", "部分成立", "不成立", "本设计不可计算"]
 
 VALID_MARKER_BASES = {
     "source_relative_seconds",
     "concatenated_seconds",
     "absolute_clock",
 }
-VALID_VERDICTS = {"支持", "不支持", "证据不足"}
+VALID_RESEARCH_VERDICTS = {"成立", "部分成立", "不成立", "本设计不可计算"}
 
 
 @dataclass(frozen=True)
@@ -149,39 +149,38 @@ class ChartAnalysis:
 
 
 @dataclass(frozen=True)
-class OverallConclusion:
-    """Separate direction, trend, and efficacy verdicts for the final report."""
+class ResearchQuestionConclusions:
+    """Direct verdicts for the current study design's research questions."""
 
-    electrophysiology_change: Verdict
-    paper_consistency: Verdict
-    antidepressant_effect: Verdict
-    rationale: str
-    antidepressant_like_trend: Verdict = "证据不足"
-    trend_rationale: str = ""
+    acute_effect: ResearchVerdict
+    acute_rationale: str
+    recovery_0_2h_effect: ResearchVerdict
+    recovery_0_2h_rationale: str
+    long_term_persistence: ResearchVerdict
+    long_term_rationale: str
+    sleep_structure_change: ResearchVerdict
+    sleep_structure_rationale: str
+    paper_parameter_consistency: ResearchVerdict
+    paper_parameter_rationale: str
 
-    def validate(
-        self,
-        *,
-        single_animal: bool,
-        eeg_only: bool,
-    ) -> list[str]:
+    def validate(self) -> list[str]:
         errors: list[str] = []
         verdicts = (
-            cast(str, self.electrophysiology_change),
-            cast(str, self.paper_consistency),
-            cast(str, self.antidepressant_like_trend),
-            cast(str, self.antidepressant_effect),
+            self.acute_effect,
+            self.recovery_0_2h_effect,
+            self.long_term_persistence,
+            self.sleep_structure_change,
+            self.paper_parameter_consistency,
         )
-        if any(value not in VALID_VERDICTS for value in verdicts):
-            errors.append("结论只能使用：支持、不支持、证据不足")
-        if (
-            single_animal
-            and eeg_only
-            and self.antidepressant_effect == "支持"
-        ):
-            errors.append("单只动物EEG不能支持明显抗抑郁作用")
-        if not self.rationale.strip():
-            errors.append("总体结论必须提供理由")
-        if not self.trend_rationale.strip():
-            errors.append("抗抑郁样趋势必须提供单独理由")
+        if any(value not in VALID_RESEARCH_VERDICTS for value in verdicts):
+            errors.append("结论只能使用：成立、部分成立、不成立、本设计不可计算")
+        rationales = (
+            self.acute_rationale,
+            self.recovery_0_2h_rationale,
+            self.long_term_rationale,
+            self.sleep_structure_rationale,
+            self.paper_parameter_rationale,
+        )
+        if any(not value.strip() for value in rationales):
+            errors.append("每个研究问题必须提供数值或设计依据")
         return errors

@@ -21,14 +21,18 @@ def test_skill_reporting_gate_requires_image_and_source_review_before_report() -
         "1.5倍四分位距",
         "时频图",
         "同源CSV",
-        "实验性结果",
-        "需要人工核查",
-        "电生理变化",
-        "与论文方向一致性",
-        "明显抗抑郁作用",
-        "证据不足",
+        "Antila",
+        "数据获取",
+        "期刊重绘",
+        "成立",
+        "部分成立",
+        "不成立",
+        "本设计不可计算",
     ):
         assert required in gate
+
+    for forbidden in ("需要更多动物", "有待大样本验证", "缺乏多只小鼠"):
+        assert forbidden not in gate
 
 
 def test_chart_analysis_contract_exists_and_forbids_workflow_labels_in_chart_names() -> None:

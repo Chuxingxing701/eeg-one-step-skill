@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/tortugar/Lab",
+  "commit": "bcb8dae1594e64a511545e34f6050e2a417c1f45",
+  "sleepy_relative_path": "PySleep/sleepy.py",
+  "sleepy_sha256": "da7ad9b5a771362cc529cca98a19879837337d4e40969f684067bcacc0148a04",
+  "vendored": false,
+  "license_detected": false
+}
